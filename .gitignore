@@ -1,0 +1,11 @@
+﻿__pycache__/
+*.pyc
+.env
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+uploads/restaurants/*
+!uploads/restaurants/.gitkeep
+vnev/
+venv/
+.venv/
+env/
