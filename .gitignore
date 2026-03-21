@@ -1,11 +1,59 @@
-﻿__pycache__/
-*.pyc
+# ─── Python / Backend ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+vnev/
+env/
+ENV/
+ 
+# Environment variables (never commit these)
 .env
+*.env
+ 
+# Uploads / media
+uploads/*
+!uploads/avatars/
+!uploads/restaurants/
 uploads/avatars/*
 !uploads/avatars/.gitkeep
 uploads/restaurants/*
 !uploads/restaurants/.gitkeep
-vnev/
-venv/
-.venv/
-env/
+ 
+# Alembic
+alembic/versions/*.pyc
+ 
+# ─── Node / Frontend ──────────────────────────────────────────────────────────
+node_modules/
+.vite/
+*.local
+ 
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+ 
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ 
+# ─── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+ 
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+*.log
+*.sqlite
+*.db
