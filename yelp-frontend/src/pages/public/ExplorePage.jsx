@@ -1,0 +1,154 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import RestaurantCard from '../../components/restaurant/RestaurantCard'
+import { restaurantService } from '../../services/restaurantService'
+import { useChat } from '../../context/AppContext'
+import { useAuth } from '../../context/AuthContext'
+
+const CUISINES = ['All', 'Italian', 'Chinese', 'Mexican', 'Indian', 'Japanese', 'American', 'Thai', 'Mediterranean']
+const PRICES   = [{ label: 'Any', value: '' }, { label: '$', value: '1' }, { label: '$$', value: '2' }, { label: '$$$', value: '3' }, { label: '$$$$', value: '4' }]
+
+export default function ExplorePage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { setIsOpen } = useChat()
+  const { user } = useAuth()
+
+  const [restaurants, setRestaurants] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  const [cuisine, setCuisine] = useState(searchParams.get('cuisine') ?? 'All')
+  const [price, setPrice] = useState(searchParams.get('price') ?? '')
+  const [city, setCity] = useState(searchParams.get('city') ?? '')
+
+  const fetchRestaurants = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = {}
+      if (query) params.q = query
+      if (cuisine && cuisine !== 'All') params.cuisine = cuisine
+      if (price) params.price = price
+      if (city) params.city = city
+      const { data } = await restaurantService.search(params)
+      setRestaurants(data)
+    } catch {
+      setRestaurants([])
+    } finally {
+      setLoading(false)
+    }
+  }, [query, cuisine, price, city])
+
+  useEffect(() => { fetchRestaurants() }, [fetchRestaurants])
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    const params = {}
+    if (query) params.q = query
+    if (cuisine !== 'All') params.cuisine = cuisine
+    if (price) params.price = price
+    if (city) params.city = city
+    setSearchParams(params)
+  }
+
+  return (
+    <div className="page-enter min-h-screen">
+      {/* Hero search */}
+      <div className="bg-gradient-to-br from-surface-900 to-surface-800 text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 text-center">
+          <h1 className="font-display text-4xl sm:text-5xl font-bold mb-3 leading-tight">
+            Find your next<br />
+            <span className="text-brand-400">favourite place</span>
+          </h1>
+          <p className="text-surface-200 text-sm mb-8">
+            Discover restaurants, read reviews, and share your experiences
+          </p>
+
+          {/* AI prompt */}
+          {user && (
+            <button onClick={() => setIsOpen(true)}
+              className="mb-6 inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/20 bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
+              <span className="text-brand-400">✦</span>
+              Ask the AI assistant instead
+            </button>
+          )}
+
+          {/* Search form */}
+          <form onSubmit={handleSearch} className="bg-white rounded-2xl p-2 flex flex-col sm:flex-row gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Restaurant name or keyword…"
+              className="input flex-1 border-0 shadow-none focus:ring-0 text-surface-800"
+            />
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="City or zip"
+              className="input w-full sm:w-40 border-0 shadow-none focus:ring-0 text-surface-800"
+            />
+            <button type="submit" className="btn-primary shrink-0">Search</button>
+          </form>
+        </div>
+      </div>
+
+      {/* Filters bar */}
+      <div className="sticky top-16 z-30 bg-white border-b border-surface-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-4 overflow-x-auto scrollbar-hide">
+          {/* Cuisine */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {CUISINES.map((c) => (
+              <button key={c} onClick={() => setCuisine(c)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all
+                  ${cuisine === c ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-100 text-surface-800 hover:bg-surface-200'}`}>
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-surface-200 shrink-0" />
+
+          {/* Price */}
+          <div className="flex items-center gap-1 shrink-0">
+            {PRICES.map(({ label, value }) => (
+              <button key={label} onClick={() => setPrice(value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-mono font-medium whitespace-nowrap transition-all
+                  ${price === value ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-100 text-surface-800 hover:bg-surface-200'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Results */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="card animate-pulse">
+                <div className="h-44 bg-surface-100" />
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-surface-100 rounded w-3/4" />
+                  <div className="h-3 bg-surface-100 rounded w-1/2" />
+                  <div className="h-3 bg-surface-100 rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : restaurants.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-4xl mb-3">🍽️</p>
+            <p className="font-display text-xl text-surface-800 mb-1">No restaurants found</p>
+            <p className="text-sm text-surface-200">Try adjusting your filters or search terms</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-surface-200 mb-4">{restaurants.length} result{restaurants.length !== 1 ? 's' : ''}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {restaurants.map((r) => <RestaurantCard key={r.id} restaurant={r} />)}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
