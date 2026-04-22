@@ -13,7 +13,7 @@ import ProfilePage from './pages/user/ProfilePage'
 import PreferencesPage from './pages/user/PreferencesPage'
 import AddRestaurantPage from './pages/user/AddRestaurantPage'
 import { FavouritesPage, HistoryPage } from './pages/user/UserListPages'
-import { OwnerDashboard, ManageRestaurantPage } from './pages/owner/OwnerPages'
+import { OwnerDashboard, ManageRestaurantsPage } from './pages/owner/OwnerPages'
 
 function Layout() {
   return (
@@ -53,7 +53,7 @@ export default function App() {
                 {/* Protected owner routes */}
                 <Route element={<OwnerRoute />}>
                   <Route path="/owner/dashboard" element={<OwnerDashboard />} />
-                  <Route path="/owner/restaurant" element={<ManageRestaurantPage />} />
+                  <Route path="/owner/restaurants" element={<ManageRestaurantsPage />} />
                 </Route>
 
                 {/* 404 */}

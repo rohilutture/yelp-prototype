@@ -6,6 +6,7 @@ from sqlalchemy import or_
 from core.database import get_db
 from core.security import get_current_user, get_optional_user
 from core.config import get_settings
+from core.kafka import publish_event
 from models.restaurant import Restaurant
 from models.review import Favourite
 from models.user import User
@@ -111,6 +112,12 @@ async def create_restaurant(
         added_by=current_user.id,
     )
     db.add(restaurant); db.commit(); db.refresh(restaurant)
+    publish_event("restaurant.created", {
+        "restaurant_id": restaurant.id,
+        "name": restaurant.name,
+        "added_by": current_user.id,
+        "owner_id": restaurant.owner_id,
+    })
     return restaurant_out(restaurant)
 
 # ─── Update ───────────────────────────────────────────────────────────────────
@@ -143,13 +150,13 @@ def delete_restaurant(restaurant_id: int, db: Session = Depends(get_db),
     db.delete(r); db.commit()
 
 # ─── Favourites ───────────────────────────────────────────────────────────────
-@router.get("/favourites")
+@router.get("/favourites/list")
 def get_favourites(db: Session = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
     favs = db.query(Favourite).filter(Favourite.user_id == current_user.id).all()
     return [restaurant_out(f.restaurant) for f in favs if f.restaurant]
 
-@router.post("/{restaurant_id}/favourite")
+@router.post("/favourites/{restaurant_id}")
 def toggle_favourite(restaurant_id: int, db: Session = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     fav = db.query(Favourite).filter(

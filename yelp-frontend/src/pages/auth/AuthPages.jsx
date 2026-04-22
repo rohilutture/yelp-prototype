@@ -28,7 +28,7 @@ function AuthForm({ mode }) {
         navigate(isOwner ? '/owner/dashboard' : '/')
       }
     } catch (err) {
-      setError(err.response?.data?.detail ?? 'Something went wrong')
+      setError(err.response?.data?.detail ?? err.message ?? 'Something went wrong')
     } finally {
       setLoading(false)
     }

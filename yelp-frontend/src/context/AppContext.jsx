@@ -1,29 +1,25 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { restaurantService } from '../services/restaurantService'
+import { useDispatch, useSelector } from 'react-redux'
+import { fetchFavourites, selectFavouriteIds, toggleFavouriteAsync } from '../store/favouritesSlice'
 import { useAuth } from './AuthContext'
 
 // ─── Favourites ───────────────────────────────────────────────────────────────
 const FavouritesContext = createContext(null)
 
 export function FavouritesProvider({ children }) {
+  const dispatch = useDispatch()
   const { user } = useAuth()
-  const [favourites, setFavourites] = useState(new Set())
+  const favouriteIds = useSelector(selectFavouriteIds)
+  const favourites = new Set(favouriteIds)
 
   useEffect(() => {
     if (!user) return
-    restaurantService.getFavourites()
-      .then(({ data }) => setFavourites(new Set(data.map((r) => r.id))))
-      .catch(() => {})
-  }, [user])
+    dispatch(fetchFavourites())
+  }, [dispatch, user])
 
   const toggle = useCallback(async (id) => {
-    await restaurantService.toggleFavourite(id)
-    setFavourites((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+    await dispatch(toggleFavouriteAsync(id))
+  }, [dispatch])
 
   const isFavourite = useCallback((id) => favourites.has(id), [favourites])
 

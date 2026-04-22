@@ -1,38 +1,43 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { restaurantService } from '../../services/restaurantService'
-import { reviewService } from '../../services'
+import { useDispatch, useSelector } from 'react-redux'
 import { useAuth } from '../../context/AuthContext'
 import { useFavourites } from '../../context/AppContext'
 import StarRating from '../../components/common/StarRating'
+import { fetchRestaurantById, selectRestaurantById, selectRestaurantsLoading } from '../../store/restaurantsSlice'
+import {
+  createReviewAsync,
+  deleteReviewAsync,
+  fetchReviewsForRestaurant,
+  selectReviewLoading,
+  selectReviewsForRestaurant,
+  updateReviewAsync,
+} from '../../store/reviewsSlice'
 
 const PRICE = { 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' }
 
 export default function RestaurantDetailPage() {
+  const dispatch = useDispatch()
   const { id } = useParams()
   const { user } = useAuth()
   const favCtx = useFavourites()
   const isFav = favCtx?.isFavourite(Number(id))
 
-  const [restaurant, setRestaurant] = useState(null)
-  const [reviews, setReviews] = useState([])
-  const [loading, setLoading] = useState(true)
+  const restaurant = useSelector(selectRestaurantById(Number(id)))
+  const reviews = useSelector(selectReviewsForRestaurant(Number(id)))
+  const loading = useSelector(selectRestaurantsLoading) || useSelector(selectReviewLoading)
+  const [initialFetchDone, setInitialFetchDone] = useState(false)
   const [showReviewForm, setShowReviewForm] = useState(false)
   const [editingReview, setEditingReview] = useState(null)
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: '' })
   const [submitting, setSubmitting] = useState(false)
 
   const fetchData = async () => {
-    try {
-      const [rRes, revRes] = await Promise.all([
-        restaurantService.getById(id),
-        reviewService.getForRestaurant(id),
-      ])
-      setRestaurant(rRes.data)
-      setReviews(revRes.data)
-    } finally {
-      setLoading(false)
-    }
+    await Promise.all([
+      dispatch(fetchRestaurantById(id)),
+      dispatch(fetchReviewsForRestaurant(id)),
+    ])
+    setInitialFetchDone(true)
   }
 
   useEffect(() => { fetchData() }, [id])
@@ -43,14 +48,14 @@ export default function RestaurantDetailPage() {
     setSubmitting(true)
     try {
       if (editingReview) {
-        await reviewService.update(editingReview.id, reviewForm)
+        await dispatch(updateReviewAsync({ reviewId: editingReview.id, payload: reviewForm }))
       } else {
-        await reviewService.create(id, reviewForm)
+        await dispatch(createReviewAsync({ restaurantId: id, payload: reviewForm }))
       }
       setReviewForm({ rating: 0, comment: '' })
       setShowReviewForm(false)
       setEditingReview(null)
-      fetchData()
+      setTimeout(fetchData, 400)
     } finally {
       setSubmitting(false)
     }
@@ -58,8 +63,8 @@ export default function RestaurantDetailPage() {
 
   const deleteReview = async (reviewId) => {
     if (!confirm('Delete this review?')) return
-    await reviewService.delete(reviewId)
-    fetchData()
+    await dispatch(deleteReviewAsync(reviewId))
+    setTimeout(fetchData, 400)
   }
 
   const startEdit = (review) => {
@@ -69,7 +74,7 @@ export default function RestaurantDetailPage() {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
   }
 
-  if (loading) return (
+  if (loading || !initialFetchDone) return (
     <div className="flex justify-center items-center min-h-screen">
       <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
     </div>

@@ -1,8 +1,10 @@
 import json
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.security import get_current_user
+from core.kafka import publish_event
 from models.review import Review
 from models.restaurant import Restaurant
 from models.user import User
@@ -51,15 +53,15 @@ def create_review(restaurant_id: int, body: ReviewCreate,
     ).first()
     if existing:
         raise HTTPException(400, "You have already reviewed this restaurant")
-    review = Review(
-        restaurant_id=restaurant_id,
-        user_id=current_user.id,
-        rating=body.rating,
-        comment=body.comment,
-    )
-    db.add(review); db.commit(); db.refresh(review)
-    recalc_rating(restaurant, db)
-    return review_out(review)
+    event_id = str(uuid.uuid4())
+    publish_event("review.created", {
+        "event_id": event_id,
+        "restaurant_id": restaurant_id,
+        "user_id": current_user.id,
+        "rating": body.rating,
+        "comment": body.comment,
+    })
+    return {"status": "queued", "event_id": event_id, "operation": "create"}
 
 # ─── Update review ────────────────────────────────────────────────────────────
 @router.put("/reviews/{review_id}")
@@ -71,14 +73,18 @@ def update_review(review_id: int, body: ReviewUpdate,
         raise HTTPException(404, "Review not found")
     if review.user_id != current_user.id:
         raise HTTPException(403, "Not your review")
-    if body.rating is not None: review.rating = body.rating
-    if body.comment is not None: review.comment = body.comment
-    db.commit(); db.refresh(review)
-    recalc_rating(review.restaurant, db)
-    return review_out(review)
+    event_id = str(uuid.uuid4())
+    publish_event("review.updated", {
+        "event_id": event_id,
+        "review_id": review.id,
+        "user_id": current_user.id,
+        "rating": body.rating,
+        "comment": body.comment,
+    })
+    return {"status": "queued", "event_id": event_id, "operation": "update"}
 
 # ─── Delete review ────────────────────────────────────────────────────────────
-@router.delete("/reviews/{review_id}", status_code=204)
+@router.delete("/reviews/{review_id}", status_code=202)
 def delete_review(review_id: int, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
     review = db.query(Review).filter(Review.id == review_id).first()
@@ -86,6 +92,11 @@ def delete_review(review_id: int, db: Session = Depends(get_db),
         raise HTTPException(404, "Review not found")
     if review.user_id != current_user.id:
         raise HTTPException(403, "Not your review")
-    restaurant = review.restaurant
-    db.delete(review); db.commit()
-    recalc_rating(restaurant, db)
+    event_id = str(uuid.uuid4())
+    publish_event("review.deleted", {
+        "event_id": event_id,
+        "review_id": review.id,
+        "user_id": current_user.id,
+        "restaurant_id": review.restaurant_id,
+    })
+    return {"status": "queued", "event_id": event_id, "operation": "delete"}

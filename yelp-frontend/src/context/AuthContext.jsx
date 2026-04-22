@@ -1,51 +1,41 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { authService } from '../services/authService'
+import { createContext, useContext, useEffect, useMemo } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  initializeAuth,
+  loginUser,
+  logoutUser,
+  selectAuth,
+  signupUser,
+} from '../store/authSlice'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
-  })
-  const [loading, setLoading] = useState(true)
+  const dispatch = useDispatch()
+  const { user, loading, initialized } = useSelector(selectAuth)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) { setLoading(false); return }
-    authService.getMe()
-      .then(({ data }) => setUser(data))
-      .catch(() => { localStorage.removeItem('token'); localStorage.removeItem('user') })
-      .finally(() => setLoading(false))
-  }, [])
+    dispatch(initializeAuth())
+  }, [dispatch])
 
-  const login = useCallback(async (credentials, isOwner = false) => {
-    const fn = isOwner ? authService.ownerLogin : authService.login
-    const { data } = await fn(credentials)
-    localStorage.setItem('token', data.access_token)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    setUser(data.user)
-    return data.user
-  }, [])
+  const value = useMemo(() => ({
+    user,
+    loading: loading || !initialized,
+    isOwner: user?.role === 'owner',
+    login: async (credentials, isOwner = false) => {
+      const result = await dispatch(loginUser({ credentials, isOwner }))
+      if (loginUser.fulfilled.match(result)) return result.payload.user
+      throw new Error(result.payload || 'Login failed')
+    },
+    signup: async (info, isOwner = false) => {
+      const result = await dispatch(signupUser({ info, isOwner }))
+      if (signupUser.fulfilled.match(result)) return result.payload.user
+      throw new Error(result.payload || 'Signup failed')
+    },
+    logout: () => dispatch(logoutUser()),
+  }), [dispatch, initialized, loading, user])
 
-  const signup = useCallback(async (info, isOwner = false) => {
-    const fn = isOwner ? authService.ownerSignup : authService.signup
-    const { data } = await fn(info)
-    localStorage.setItem('token', data.access_token)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    setUser(data.user)
-    return data.user
-  }, [])
-
-  const logout = useCallback(() => {
-    authService.logout()
-    setUser(null)
-  }, [])
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, isOwner: user?.role === 'owner' }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {

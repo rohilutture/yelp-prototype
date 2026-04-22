@@ -9,7 +9,7 @@ export const restaurantService = {
   update: (id, data) => api.put(`/restaurants/${id}`, data),
   delete: (id) => api.delete(`/restaurants/${id}`),
   search: (params) => api.get('/restaurants/search', { params }),
-  getFavourites: () => api.get('/restaurants/favourites'),
+  getFavourites: () => api.get('/restaurants/favourites/list'),
   toggleFavourite: (id) => api.post(`/restaurants/favourites/${id}`),
   claim: (id) => api.post(`/restaurants/${id}/claim`),
 }

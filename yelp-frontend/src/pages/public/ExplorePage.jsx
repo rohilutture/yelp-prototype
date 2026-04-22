@@ -1,43 +1,41 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import RestaurantCard from '../../components/restaurant/RestaurantCard'
-import { restaurantService } from '../../services/restaurantService'
 import { useChat } from '../../context/AppContext'
 import { useAuth } from '../../context/AuthContext'
+import {
+  fetchRestaurants,
+  selectRestaurants,
+  selectRestaurantsLoading,
+} from '../../store/restaurantsSlice'
 
 const CUISINES = ['All', 'Italian', 'Chinese', 'Mexican', 'Indian', 'Japanese', 'American', 'Thai', 'Mediterranean']
 const PRICES   = [{ label: 'Any', value: '' }, { label: '$', value: '1' }, { label: '$$', value: '2' }, { label: '$$$', value: '3' }, { label: '$$$$', value: '4' }]
 
 export default function ExplorePage() {
+  const dispatch = useDispatch()
   const [searchParams, setSearchParams] = useSearchParams()
   const { setIsOpen } = useChat()
   const { user } = useAuth()
 
-  const [restaurants, setRestaurants] = useState([])
-  const [loading, setLoading] = useState(true)
+  const restaurants = useSelector(selectRestaurants)
+  const loading = useSelector(selectRestaurantsLoading)
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const [cuisine, setCuisine] = useState(searchParams.get('cuisine') ?? 'All')
   const [price, setPrice] = useState(searchParams.get('price') ?? '')
   const [city, setCity] = useState(searchParams.get('city') ?? '')
 
-  const fetchRestaurants = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = {}
-      if (query) params.q = query
-      if (cuisine && cuisine !== 'All') params.cuisine = cuisine
-      if (price) params.price = price
-      if (city) params.city = city
-      const { data } = await restaurantService.search(params)
-      setRestaurants(data)
-    } catch {
-      setRestaurants([])
-    } finally {
-      setLoading(false)
-    }
-  }, [query, cuisine, price, city])
+  const loadRestaurants = useCallback(async () => {
+    const params = {}
+    if (query) params.q = query
+    if (cuisine && cuisine !== 'All') params.cuisine = cuisine
+    if (price) params.price = price
+    if (city) params.city = city
+    dispatch(fetchRestaurants(params))
+  }, [query, cuisine, price, city, dispatch])
 
-  useEffect(() => { fetchRestaurants() }, [fetchRestaurants])
+  useEffect(() => { loadRestaurants() }, [loadRestaurants])
 
   const handleSearch = (e) => {
     e.preventDefault()

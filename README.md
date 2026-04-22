@@ -1,192 +1,146 @@
-# Yelp Prototype
+# Yelp Prototype - Lab 2
 
-A full-stack restaurant discovery and review platform built with React, FastAPI, MySQL, and an AI-powered chatbot assistant.
+Full-stack Yelp-style application enhanced for Lab 2 with Docker, Kubernetes, Kafka, MongoDB session storage, and Redux Toolkit.
 
-> **Lab 1 — Advanced Web Technologies**
-> Due: March 24, 2026
+## Lab 2 Deliverables Included
 
----
+- Dockerfiles for `user`, `owner`, `restaurant`, `review`, and `frontend` services.
+- `docker-compose.yml` for local full-stack orchestration with Kafka and MongoDB.
+- Kubernetes manifests in `k8s/lab2-stack.yaml`.
+- Kafka producer/consumer flow for review and restaurant events.
+- MongoDB integration for secure session storage and activity logs.
+- Data migration script from MySQL to MongoDB documents.
+- Redux store with `auth`, `restaurants`, `reviews`, and `favourites` slices.
+- JMeter test plan scaffolding for auth, search, and review endpoints.
+- Architecture diagram in `docs/lab2-architecture.md`.
 
-## Project Structure
+## Repository Structure
 
+```text
+yelp-prototype-main/
+├── core/                     # Config, DB, security, Mongo, Kafka helpers
+├── routers/                  # FastAPI route modules
+├── workers/                  # Kafka worker services
+├── docker/                   # Service Dockerfiles
+├── k8s/                      # Kubernetes manifests
+├── scripts/                  # Utility scripts (including Mongo migration)
+├── jmeter/                   # JMeter test plan + results template
+└── yelp-frontend/            # React + Redux frontend
 ```
-yelp-prototype/
-├── yelp-frontend/       # React 18 + Vite + TailwindCSS
-└── yelp-backend/        # Python 3.12 + FastAPI + MySQL
-```
 
----
+## Prerequisites
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | React 18, Vite, TailwindCSS, Axios, React Router v6 |
-| Backend | Python 3.12, FastAPI, SQLAlchemy, Alembic |
-| Database | MySQL 8.0 |
-| Auth | JWT (python-jose) + bcrypt (passlib) |
-| AI Assistant | LangChain, OpenAI GPT-4o-mini, Tavily Search |
-
----
-
-## Getting Started
-
-### Prerequisites
-
+- Python 3.12+
 - Node.js 18+
-- Python 3.10+
-- MySQL 8.0+
-- Git
-
----
-
-## Backend Setup
-
-```bash
-cd yelp-backend
-
-# 1. Create and configure environment
-cp .env.example .env
-# Edit .env — add your DB password and API keys
-
-# 2. Create the MySQL database
-mysql -u root -p -e "CREATE DATABASE yelp_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Start the server (tables are auto-created on first run)
-uvicorn main:app --reload --port 8000
-
-# 5. (Optional) Seed sample data
-python seed.py
-```
-
-The API will be running at **http://localhost:8000**
-
-Interactive API docs (Swagger UI): **http://localhost:8000/docs**
-
-### Backend Test Credentials (after seeding)
-
-| Role | Email | Password |
-|---|---|---|
-| User | alice@example.com | password123 |
-| User | bob@example.com | password123 |
-| Owner | marco@example.com | password123 |
-
----
-
-## Frontend Setup
-
-```bash
-cd yelp-frontend
-
-# 1. Install dependencies
-npm install
-
-# 2. Start the dev server
-npm run dev
-```
-
-The app will be running at **http://localhost:5173**
-
-> The Vite dev server automatically proxies all `/api/*` requests to the FastAPI backend at `http://localhost:8000` — no extra configuration needed.
-
----
-
-## Running Both Together
-
-Open two terminal windows:
-
-**Terminal 1 — Backend:**
-```bash
-cd yelp-backend
-uvicorn main:app --reload --port 8000
-```
-
-**Terminal 2 — Frontend:**
-```bash
-cd yelp-frontend
-npm run dev
-```
-
-Then open **http://localhost:5173** in your browser.
-
----
+- Docker / Docker Compose
+- (Optional) Kubernetes cluster (minikube, kind, EKS)
 
 ## Environment Variables
 
-Copy `yelp-backend/.env.example` to `yelp-backend/.env` and fill in:
+Create `.env` in the project root:
 
 ```env
-# Required
-DATABASE_URL=mysql+pymysql://root:YOUR_PASSWORD@localhost:3306/yelp_db
-SECRET_KEY=your-long-random-secret-key
-
-# Optional — enables full AI assistant features
-OPENAI_API_KEY=sk-...
-TAVILY_API_KEY=tvly-...
+DATABASE_URL=mysql+pymysql://root:root@localhost:3306/yelp_db
+MONGODB_URL=mongodb://localhost:27017
+MONGO_DB_NAME=yelp_lab2
+SECRET_KEY=change-this-secret-key
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+OPENAI_API_KEY=
+TAVILY_API_KEY=
 ```
 
-> The AI assistant works without API keys using a built-in rule-based fallback.
-
----
-
-## Features
-
-### User (Reviewer)
-- Sign up / log in with JWT authentication
-- Search and filter restaurants by name, cuisine, city, price
-- View restaurant details, photos, hours, and reviews
-- Write, edit, and delete your own reviews (1–5 stars)
-- Save restaurants to favourites
-- View activity history (reviews written + restaurants added)
-- Add new restaurant listings with photos
-- Manage profile: name, photo, city, languages, preferences
-- Chat with the AI assistant for personalised recommendations
-
-### Restaurant Owner
-- Separate owner signup and login
-- Create and manage restaurant listing
-- Claim existing restaurant listings
-- View analytics dashboard (views, ratings, review breakdown)
-- Read all reviews for owned restaurant
-
-### AI Assistant
-- Conversational chatbot powered by LangChain + GPT-4o-mini
-- Reads user preferences (cuisine, price, dietary, ambiance) automatically
-- Supports multi-turn conversations and follow-up questions
-- Optional Tavily web search for enriched context
-- Rule-based fallback when no API key is configured
-
----
-
-## API Documentation
-
-FastAPI generates interactive documentation automatically:
-
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
----
-
-## Git Workflow
+## Local Run (Docker Compose)
 
 ```bash
-# Always pull before starting work
-git pull
-
-# After making changes
-git add .
-git commit -m "brief description of what you changed"
-git push
+docker compose up --build
 ```
 
----
+Services:
 
-## Team
+- `user-service`: `http://localhost:8001`
+- `owner-service`: `http://localhost:8002`
+- `restaurant-service`: `http://localhost:8003`
+- `review-service`: `http://localhost:8004`
+- frontend: `http://localhost:5173`
+- Kafka: `localhost:9092`
+- MongoDB: `localhost:27017`
 
-| Name | Role |
-|---|---|
-| Rohil Utture | Frontend (React) |
-| Yash Shevkar | Backend (FastAPI + MySQL) |
+## Local Run (Developer Mode)
+
+Backend:
+
+```bash
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+Frontend:
+
+```bash
+cd yelp-frontend
+npm install
+npm run dev
+```
+
+## Kafka Review Flow
+
+1. Client submits review request.
+2. Review API publishes to `review.created`, `review.updated`, or `review.deleted`.
+3. `workers/review_worker.py` consumes the event and writes changes to DB.
+4. Worker recalculates restaurant rating and emits `review.status`.
+5. Activity logs are stored in MongoDB.
+
+Architecture diagram: `docs/lab2-architecture.md`.
+
+## MongoDB Migration
+
+Run one-time migration script:
+
+```bash
+python scripts/migrate_to_mongodb.py
+```
+
+Collections produced:
+
+- `users`
+- `restaurants`
+- `reviews`
+- `favourites`
+- `sessions`
+- `activity_logs`
+
+## Redux Integration
+
+Redux store is configured in `yelp-frontend/src/store/` with:
+
+- `authSlice`
+- `restaurantsSlice`
+- `reviewsSlice`
+- `favouritesSlice`
+
+Redux DevTools are enabled in development through store configuration.
+
+## Kubernetes Deployment
+
+Apply manifests:
+
+```bash
+kubectl apply -f k8s/lab2-stack.yaml
+kubectl get pods -n yelp-lab2
+kubectl get svc -n yelp-lab2
+```
+
+## JMeter
+
+Test plan and templates are provided in `jmeter/`:
+
+- `jmeter/lab2-performance-test-plan.jmx`
+- `jmeter/results-summary-template.csv`
+
+Run tests at concurrency levels 100, 200, 300, 400, 500 and update the results template.
+
+## Notes
+
+- Passwords are hashed with bcrypt (`core/security.py`).
+- Session records are persisted in MongoDB (`routers/auth.py` + `core/mongo.py`).
+- Kafka topic creation is attempted automatically during app startup.
