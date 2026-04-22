@@ -36,7 +36,8 @@ export default function Navbar() {
           {isOwner && (
             <>
               <NavLink to="/owner/dashboard" className={navLink}>Dashboard</NavLink>
-              <NavLink to="/owner/restaurant" className={navLink}>My Restaurant</NavLink>
+              <NavLink to="/owner/restaurants" className={navLink}>My Restaurants</NavLink>
+              <NavLink to="/add-restaurant" className={navLink}>Add Restaurant</NavLink>
             </>
           )}
         </nav>
