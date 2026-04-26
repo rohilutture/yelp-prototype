@@ -1,25 +1,30 @@
 import json
+from datetime import datetime, timezone
 
+from bson import ObjectId
 from kafka import KafkaConsumer
 
 from core.config import get_settings
-from core.database import SessionLocal
 from core.kafka import build_producer
-from core.mongo import get_activity_logs_collection
-from models.restaurant import Restaurant
-from models.review import Review
+from core.mongo import (
+    get_reviews_collection, get_restaurants_collection, get_activity_logs_collection
+)
 
 settings = get_settings()
 
 
-def _recalc_rating(restaurant_id: int, db):
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        return
-    reviews = db.query(Review).filter(Review.restaurant_id == restaurant_id).all()
-    restaurant.review_count = len(reviews)
-    restaurant.avg_rating = round(sum(r.rating for r in reviews) / len(reviews), 2) if reviews else 0.0
-    db.commit()
+def _recalc_rating(restaurant_id: str):
+    restaurants = get_restaurants_collection()
+    reviews = list(get_reviews_collection().find({"restaurant_id": restaurant_id}))
+    count = len(reviews)
+    avg = round(sum(r["rating"] for r in reviews) / count, 2) if count else 0.0
+    try:
+        restaurants.update_one(
+            {"_id": ObjectId(restaurant_id)},
+            {"$set": {"review_count": count, "avg_rating": avg}},
+        )
+    except Exception:
+        pass
 
 
 def run():
@@ -32,54 +37,71 @@ def run():
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
         auto_offset_reset="earliest",
         enable_auto_commit=True,
+        api_version=(2, 5, 0),
+        request_timeout_ms=30000,
+        connections_max_idle_ms=60000,
     )
     producer = build_producer()
     logs = get_activity_logs_collection()
+    reviews = get_reviews_collection()
 
+    print("[review-worker] Connected to Kafka. Waiting for messages on review.created / review.updated / review.deleted ...", flush=True)
     for message in consumer:
         topic = message.topic
         payload = message.value
-        db = SessionLocal()
         status = "success"
         detail = ""
+        print(f"[review-worker] Consumed event: topic={topic} event_id={payload.get('event_id')} restaurant_id={payload.get('restaurant_id')}", flush=True)
+
         try:
             if topic == "review.created":
-                existing = db.query(Review).filter(
-                    Review.restaurant_id == payload["restaurant_id"],
-                    Review.user_id == payload["user_id"],
-                ).first()
+                restaurant_id = payload["restaurant_id"]
+                user_id = payload["user_id"]
+                existing = reviews.find_one({"restaurant_id": restaurant_id, "user_id": user_id})
                 if not existing:
-                    review = Review(
-                        restaurant_id=payload["restaurant_id"],
-                        user_id=payload["user_id"],
-                        rating=payload["rating"],
-                        comment=payload.get("comment"),
-                    )
-                    db.add(review)
-                    db.commit()
-                _recalc_rating(payload["restaurant_id"], db)
+                    reviews.insert_one({
+                        "restaurant_id": restaurant_id,
+                        "user_id": user_id,
+                        "rating": payload["rating"],
+                        "comment": payload.get("comment"),
+                        "photos": [],
+                        "created_at": datetime.now(timezone.utc),
+                    })
+                _recalc_rating(restaurant_id)
+
             elif topic == "review.updated":
-                review = db.query(Review).filter(Review.id == payload["review_id"]).first()
+                review_id = payload["review_id"]
+                try:
+                    review = reviews.find_one({"_id": ObjectId(review_id)})
+                except Exception:
+                    review = None
                 if review:
+                    updates = {}
                     if payload.get("rating") is not None:
-                        review.rating = payload["rating"]
+                        updates["rating"] = payload["rating"]
                     if payload.get("comment") is not None:
-                        review.comment = payload["comment"]
-                    db.commit()
-                    _recalc_rating(review.restaurant_id, db)
+                        updates["comment"] = payload["comment"]
+                    if updates:
+                        updates["updated_at"] = datetime.now(timezone.utc)
+                        reviews.update_one({"_id": ObjectId(review_id)}, {"$set": updates})
+                    _recalc_rating(review["restaurant_id"])
+
             elif topic == "review.deleted":
-                review = db.query(Review).filter(Review.id == payload["review_id"]).first()
+                review_id = payload["review_id"]
+                restaurant_id = payload.get("restaurant_id")
+                try:
+                    review = reviews.find_one({"_id": ObjectId(review_id)})
+                except Exception:
+                    review = None
                 if review:
-                    restaurant_id = review.restaurant_id
-                    db.delete(review)
-                    db.commit()
-                    _recalc_rating(restaurant_id, db)
+                    restaurant_id = review.get("restaurant_id", restaurant_id)
+                    reviews.delete_one({"_id": ObjectId(review_id)})
+                if restaurant_id:
+                    _recalc_rating(restaurant_id)
+
         except Exception as exc:
-            db.rollback()
             status = "failed"
             detail = str(exc)
-        finally:
-            db.close()
 
         logs.insert_one({
             "type": "review_event",
@@ -96,6 +118,7 @@ def run():
             "detail": detail,
         })
         producer.flush()
+        print(f"[review-worker] Processed event: topic={topic} status={status}", flush=True)
 
 
 if __name__ == "__main__":

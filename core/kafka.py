@@ -38,9 +38,13 @@ def build_producer() -> KafkaProducer:
 
 
 def publish_event(topic: str, payload: dict[str, Any]) -> None:
-    producer = build_producer()
     try:
-        producer.send(topic, payload)
-        producer.flush()
-    finally:
-        producer.close()
+        producer = build_producer()
+        try:
+            producer.send(topic, payload)
+            producer.flush()
+        finally:
+            producer.close()
+    except Exception as exc:
+        # Kafka unavailable (e.g. local dev without Kafka running) — log and continue.
+        print(f"[kafka] WARNING: could not publish to {topic}: {exc}")

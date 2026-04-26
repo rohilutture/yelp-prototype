@@ -1,24 +1,17 @@
-import json, os, shutil
+import os, shutil
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.orm import Session
-from core.database import get_db
-from core.security import get_current_user
+from core.security import get_current_user, UserDoc
 from core.config import get_settings
-from models.user import User
-from models.review import UserPreference, Review
-from models.restaurant import Restaurant
+from core.mongo import get_users_collection, get_preferences_collection, get_reviews_collection, get_restaurants_collection, to_oid
 from schemas.schemas import UserUpdate, PreferencesIn, PreferencesOut
 
 router = APIRouter(prefix="/users", tags=["Users"])
 settings = get_settings()
 
-# ─── Profile ──────────────────────────────────────────────────────────────────
+
 @router.get("/profile")
-def get_profile(current_user: User = Depends(get_current_user)):
-    langs = []
-    if current_user.languages:
-        try: langs = json.loads(current_user.languages)
-        except: pass
+def get_profile(current_user: UserDoc = Depends(get_current_user)):
     return {
         "id": current_user.id,
         "name": current_user.name,
@@ -29,25 +22,25 @@ def get_profile(current_user: User = Depends(get_current_user)):
         "city": current_user.city,
         "country": current_user.country,
         "gender": current_user.gender,
-        "languages": langs,
+        "languages": current_user.languages or [],
         "avatar_url": current_user.avatar_url,
     }
 
+
 @router.put("/profile")
-def update_profile(body: UserUpdate, db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
-    for k, v in body.model_dump(exclude_none=True).items():
-        if k == "languages":
-            setattr(current_user, k, json.dumps(v))
-        else:
-            setattr(current_user, k, v)
-    db.commit(); db.refresh(current_user)
+def update_profile(body: UserUpdate, current_user: UserDoc = Depends(get_current_user)):
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        return {"detail": "Nothing to update"}
+    get_users_collection().update_one(
+        {"_id": to_oid(current_user.id)},
+        {"$set": {**updates, "updated_at": datetime.now(timezone.utc)}},
+    )
     return {"detail": "Profile updated"}
 
-# ─── Avatar ───────────────────────────────────────────────────────────────────
+
 @router.post("/avatar")
-def upload_avatar(file: UploadFile = File(...), db: Session = Depends(get_db),
-                  current_user: User = Depends(get_current_user)):
+def upload_avatar(file: UploadFile = File(...), current_user: UserDoc = Depends(get_current_user)):
     upload_dir = os.path.join(settings.UPLOAD_DIR, "avatars")
     os.makedirs(upload_dir, exist_ok=True)
     ext = os.path.splitext(file.filename)[1]
@@ -55,79 +48,80 @@ def upload_avatar(file: UploadFile = File(...), db: Session = Depends(get_db),
     path = os.path.join(upload_dir, filename)
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    current_user.avatar_url = f"/{path}"
-    db.commit()
-    return {"avatar_url": current_user.avatar_url}
+    avatar_url = f"/{path}"
+    get_users_collection().update_one(
+        {"_id": to_oid(current_user.id)},
+        {"$set": {"avatar_url": avatar_url}},
+    )
+    return {"avatar_url": avatar_url}
 
-# ─── Preferences ──────────────────────────────────────────────────────────────
+
 @router.get("/preferences", response_model=PreferencesOut)
-def get_preferences(db: Session = Depends(get_db),
-                    current_user: User = Depends(get_current_user)):
-    prefs = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
+def get_preferences(current_user: UserDoc = Depends(get_current_user)):
+    prefs = get_preferences_collection().find_one({"user_id": current_user.id})
     if not prefs:
         return PreferencesOut()
-    def jl(v): 
-        try: return json.loads(v) if v else []
-        except: return []
     return PreferencesOut(
-        cuisines=jl(prefs.cuisines),
-        price_range=jl(prefs.price_range),
-        dietary=jl(prefs.dietary),
-        ambiance=jl(prefs.ambiance),
-        sort_by=prefs.sort_by or "Rating",
-        location=prefs.location,
-        radius=prefs.radius or 10,
+        cuisines=prefs.get("cuisines", []),
+        price_range=prefs.get("price_range", []),
+        dietary=prefs.get("dietary", []),
+        ambiance=prefs.get("ambiance", []),
+        sort_by=prefs.get("sort_by", "Rating"),
+        location=prefs.get("location"),
+        radius=prefs.get("radius", 10),
     )
 
+
 @router.put("/preferences")
-def update_preferences(body: PreferencesIn, db: Session = Depends(get_db),
-                       current_user: User = Depends(get_current_user)):
-    prefs = db.query(UserPreference).filter(UserPreference.user_id == current_user.id).first()
-    if not prefs:
-        prefs = UserPreference(user_id=current_user.id)
-        db.add(prefs)
-    prefs.cuisines    = json.dumps(body.cuisines)
-    prefs.price_range = json.dumps(body.price_range)
-    prefs.dietary     = json.dumps(body.dietary)
-    prefs.ambiance    = json.dumps(body.ambiance)
-    prefs.sort_by     = body.sort_by
-    prefs.location    = body.location
-    prefs.radius      = body.radius
-    db.commit()
+def update_preferences(body: PreferencesIn, current_user: UserDoc = Depends(get_current_user)):
+    get_preferences_collection().update_one(
+        {"user_id": current_user.id},
+        {"$set": {
+            "user_id": current_user.id,
+            "cuisines": body.cuisines,
+            "price_range": body.price_range,
+            "dietary": body.dietary,
+            "ambiance": body.ambiance,
+            "sort_by": body.sort_by,
+            "location": body.location,
+            "radius": body.radius,
+            "updated_at": datetime.now(timezone.utc),
+        }},
+        upsert=True,
+    )
     return {"detail": "Preferences saved"}
 
-# ─── History ──────────────────────────────────────────────────────────────────
+
 @router.get("/history")
-def get_history(db: Session = Depends(get_db),
-                current_user: User = Depends(get_current_user)):
-    reviews = db.query(Review).filter(Review.user_id == current_user.id).order_by(Review.created_at.desc()).all()
-    added   = db.query(Restaurant).filter(Restaurant.added_by == current_user.id).order_by(Restaurant.created_at.desc()).all()
+def get_history(current_user: UserDoc = Depends(get_current_user)):
+    reviews_col = get_reviews_collection()
+    restaurants_col = get_restaurants_collection()
 
-    def parse_json(v):
-        try: return json.loads(v) if v else []
-        except: return []
+    reviews = list(reviews_col.find({"user_id": current_user.id}).sort("created_at", -1))
+    added = list(restaurants_col.find({"added_by": current_user.id}).sort("created_at", -1))
 
-    return {
-        "reviews": [
-            {
-                "id": r.id,
-                "restaurant_id": r.restaurant_id,
-                "restaurant_name": r.restaurant.name if r.restaurant else "",
-                "rating": r.rating,
-                "comment": r.comment,
-                "created_at": r.created_at,
-            }
-            for r in reviews
-        ],
-        "restaurants_added": [
-            {
-                "id": r.id,
-                "name": r.name,
-                "cuisine_type": r.cuisine_type,
-                "city": r.city,
-                "avg_rating": r.avg_rating,
-                "photos": parse_json(r.photos),
-            }
-            for r in added
-        ],
-    }
+    review_out = []
+    for r in reviews:
+        rest = restaurants_col.find_one({"_id": to_oid(r["restaurant_id"])}) if r.get("restaurant_id") else None
+        review_out.append({
+            "id": str(r["_id"]),
+            "restaurant_id": r.get("restaurant_id"),
+            "restaurant_name": rest["name"] if rest else "",
+            "rating": r.get("rating"),
+            "comment": r.get("comment"),
+            "created_at": r.get("created_at"),
+        })
+
+    rest_out = [
+        {
+            "id": str(r["_id"]),
+            "name": r.get("name"),
+            "cuisine_type": r.get("cuisine_type"),
+            "city": r.get("city"),
+            "avg_rating": r.get("avg_rating", 0),
+            "photos": r.get("photos", []),
+        }
+        for r in added
+    ]
+
+    return {"reviews": review_out, "restaurants_added": rest_out}

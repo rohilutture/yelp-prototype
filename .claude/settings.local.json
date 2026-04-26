@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show *)",
+      "Bash(mongod --version)",
+      "Bash(python -c ' *)",
+      "Bash(python -m uvicorn main:app --port 8000 --no-access-log)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s -X POST http://localhost:8000/auth/signup -H \"Content-Type: application/json\" -d \"{\\\\\"name\\\\\":\\\\\"Test\\\\\",\\\\\"email\\\\\":\\\\\"test2@test.com\\\\\",\\\\\"password\\\\\":\\\\\"pass123\\\\\"}\")",
+      "Bash(pkill -f \"uvicorn main:app\")",
+      "PowerShell(netstat -ano)",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue; \"done\")",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(node generate-report.js)",
+      "Bash(docker compose *)",
+      "Bash(kubectl version *)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl apply *)",
+      "Bash(docker tag *)",
+      "Bash(ping -n 20 127.0.0.1)",
+      "Bash(ping -n 15 127.0.0.1)",
+      "Bash(ping -n 30 127.0.0.1)",
+      "Bash(ping -n 45 127.0.0.1)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl rollout *)",
+      "Bash(ping -n 40 127.0.0.1)",
+      "Bash(ping -n 35 127.0.0.1)",
+      "Bash(ping -n 50 127.0.0.1)",
+      "Bash(ping -n 55 127.0.0.1)",
+      "Bash(ping -n 60 127.0.0.1)",
+      "Bash(git add *)"
+    ]
+  }
+}

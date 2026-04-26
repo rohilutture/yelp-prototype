@@ -50,13 +50,19 @@ export default function ExplorePage() {
   return (
     <div className="page-enter min-h-screen">
       {/* Hero search */}
-      <div className="bg-gradient-to-br from-surface-900 to-surface-800 text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-14 text-center">
+      <div className="relative overflow-hidden bg-gradient-to-br from-surface-900 via-surface-900 to-surface-800 text-white">
+        <div className="absolute -top-20 -left-20 w-72 h-72 bg-brand-500/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 right-0 w-80 h-80 bg-brand-300/10 rounded-full blur-3xl" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16 text-center relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs mb-5">
+            <span className="text-brand-300">●</span>
+            Curated picks, reviews, and AI recommendations
+          </div>
           <h1 className="font-display text-4xl sm:text-5xl font-bold mb-3 leading-tight">
             Find your next<br />
             <span className="text-brand-400">favourite place</span>
           </h1>
-          <p className="text-surface-200 text-sm mb-8">
+          <p className="text-surface-200 text-sm mb-8 max-w-2xl mx-auto">
             Discover restaurants, read reviews, and share your experiences
           </p>
 
@@ -70,7 +76,7 @@ export default function ExplorePage() {
           )}
 
           {/* Search form */}
-          <form onSubmit={handleSearch} className="bg-white rounded-2xl p-2 flex flex-col sm:flex-row gap-2">
+          <form onSubmit={handleSearch} className="bg-white/95 backdrop-blur rounded-2xl p-2 flex flex-col sm:flex-row gap-2 shadow-card-hover border border-white/30">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -119,6 +125,16 @@ export default function ExplorePage() {
 
       {/* Results */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {!loading && restaurants.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-surface-200">Trending now</span>
+            {restaurants.slice(0, 4).map((r) => (
+              <span key={r.id} className="badge bg-brand-50 text-brand-600 border border-brand-100">
+                {r.name}
+              </span>
+            ))}
+          </div>
+        )}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (

@@ -11,7 +11,7 @@ const initialState = {
 export const fetchReviewsForRestaurant = createAsyncThunk('reviews/fetchByRestaurant', async (restaurantId, { rejectWithValue }) => {
   try {
     const { data } = await reviewService.getForRestaurant(restaurantId)
-    return { restaurantId: Number(restaurantId), reviews: data }
+    return { restaurantId, reviews: data }
   } catch (err) {
     return rejectWithValue(err.response?.data?.detail || 'Failed to fetch reviews')
   }
@@ -20,7 +20,7 @@ export const fetchReviewsForRestaurant = createAsyncThunk('reviews/fetchByRestau
 export const createReviewAsync = createAsyncThunk('reviews/create', async ({ restaurantId, payload }, { rejectWithValue }) => {
   try {
     const { data } = await reviewService.create(restaurantId, payload)
-    return { restaurantId: Number(restaurantId), queueStatus: data }
+    return { restaurantId, queueStatus: data }
   } catch (err) {
     return rejectWithValue(err.response?.data?.detail || 'Failed to submit review')
   }
@@ -75,7 +75,7 @@ const reviewsSlice = createSlice({
 })
 
 export const selectReviewsForRestaurant = (restaurantId) => (state) =>
-  state.reviews.byRestaurant[Number(restaurantId)] || []
+  state.reviews.byRestaurant[restaurantId] || []
 export const selectReviewLoading = (state) => state.reviews.loading
 export const selectReviewPendingEvents = (state) => state.reviews.pendingEvents
 

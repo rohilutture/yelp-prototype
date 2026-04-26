@@ -9,6 +9,15 @@ class UserSignup(BaseModel):
     password: str
     restaurant_location: Optional[str] = None
 
+    @field_validator("password")
+    @classmethod
+    def password_bcrypt_limit(cls, v: str):
+        # bcrypt only considers the first 72 bytes of the password; enforce this limit
+        # to avoid server errors and accidental truncation.
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 bytes (bcrypt limit)")
+        return v
+
 class OwnerSignup(BaseModel):
     name: str
     email: EmailStr

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Yelp Prototype – Lab 2 Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 40px;
+    min-width: 1100px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #f8fafc;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #94a3b8;
+    margin-bottom: 36px;
+  }
+
+  /* ── layout ── */
+  .diagram {
+    display: grid;
+    grid-template-columns: 200px 60px 260px 60px 200px 60px 180px;
+    grid-template-rows: auto auto auto auto;
+    align-items: center;
+    justify-items: center;
+    gap: 12px 0;
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+
+  /* ── boxes ── */
+  .box {
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+    width: 100%;
+    font-size: 13px;
+    line-height: 1.5;
+    position: relative;
+  }
+  .box .label {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .box .sub {
+    font-size: 11px;
+    opacity: 0.75;
+  }
+
+  .client   { background: #1e3a5f; border: 2px solid #3b82f6; }
+  .nginx    { background: #14532d; border: 2px solid #22c55e; }
+  .service  { background: #1e1b4b; border: 2px solid #818cf8; }
+  .kafka    { background: #431407; border: 2px solid #f97316; }
+  .worker   { background: #1c1917; border: 2px solid #a78bfa; }
+  .mongo    { background: #14532d; border: 2px solid #4ade80; }
+  .aws-box  {
+    border: 2px dashed #fbbf24;
+    border-radius: 14px;
+    padding: 10px 16px;
+    color: #fbbf24;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: center;
+    width: 100%;
+  }
+
+  /* ── arrows ── */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #94a3b8;
+    gap: 2px;
+    width: 60px;
+  }
+  .arrow .line {
+    width: 40px;
+    height: 2px;
+    background: #475569;
+    position: relative;
+  }
+  .arrow .line::after {
+    content: '▶';
+    position: absolute;
+    right: -8px;
+    top: -7px;
+    font-size: 10px;
+    color: #94a3b8;
+  }
+  .arrow .line.left::after { content: '◀'; right: auto; left: -8px; }
+  .arrow .txt { font-size: 9px; color: #64748b; white-space: nowrap; }
+
+  .arrow-down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #94a3b8;
+    font-size: 10px;
+    gap: 2px;
+  }
+  .arrow-down .vline {
+    width: 2px;
+    height: 28px;
+    background: #475569;
+  }
+  .arrow-down .vtxt { font-size: 9px; color: #64748b; }
+
+  /* grid placement helpers */
+  .col1 { grid-column: 1; }
+  .col2 { grid-column: 2; }
+  .col3 { grid-column: 3; }
+  .col4 { grid-column: 4; }
+  .col5 { grid-column: 5; }
+  .col6 { grid-column: 6; }
+  .col7 { grid-column: 7; }
+  .span3 { grid-column: span 3; }
+  .span7 { grid-column: 1 / -1; }
+
+  /* services stack */
+  .services-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  .workers-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  /* legend */
+  .legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-top: 32px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    border: 2px solid;
+  }
+
+  .aws-wrapper {
+    border: 2px dashed #fbbf24;
+    border-radius: 16px;
+    padding: 24px 28px 20px;
+    position: relative;
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+  .aws-label {
+    position: absolute;
+    top: -13px;
+    left: 20px;
+    background: #0f1117;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fbbf24;
+    letter-spacing: 1px;
+  }
+
+  .inner-grid {
+    display: grid;
+    grid-template-columns: 200px 50px 240px 50px 160px 50px 160px;
+    align-items: center;
+    justify-items: center;
+    row-gap: 14px;
+  }
+
+  .double-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    color: #475569;
+    font-size: 16px;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .double-arrow .atxt { font-size: 9px; color: #64748b; white-space: nowrap; }
+
+  .vert-connector {
+    grid-column: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #475569;
+  }
+  .vert-connector .vl { width: 2px; background: #475569; flex: 1; min-height: 20px; }
+
+  .kafka-section {
+    grid-column: 5;
+    grid-row: 1 / 4;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Yelp Prototype — Lab 2 System Architecture</h1>
+<p class="subtitle">Microservices · MongoDB · Apache Kafka · Docker · AWS EC2</p>
+
+<div class="aws-wrapper">
+  <span class="aws-label">☁ AWS EC2 — us-west-2 (t3.medium)</span>
+
+  <!-- ROW 1: Client → Nginx → Services → Kafka → Workers -->
+  <div style="display:flex; align-items:flex-start; gap:0; margin-bottom: 24px;">
+
+    <!-- Client -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:160px;">
+      <div class="box client" style="width:155px;">
+        <div class="label">🌐 Browser</div>
+        <div class="sub">React + Redux<br/>Vite / SPA</div>
+      </div>
+      <div style="font-size:10px;color:#64748b;">port 5173</div>
+    </div>
+
+    <!-- arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:52px;padding-top:16px;">
+      <div style="font-size:9px;color:#64748b;margin-bottom:2px;">HTTP</div>
+      <div style="display:flex;align-items:center;gap:2px;">
+        <div style="height:2px;width:32px;background:#475569;"></div>
+        <span style="color:#94a3b8;font-size:12px;">▶</span>
+      </div>
+    </div>
+
+    <!-- Nginx -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:130px;">
+      <div class="box nginx" style="width:125px;">
+        <div class="label">🔀 Nginx</div>
+        <div class="sub">Reverse Proxy<br/>/api/* routing</div>
+      </div>
+    </div>
+
+    <!-- arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:52px;padding-top:16px;">
+      <div style="font-size:9px;color:#64748b;margin-bottom:2px;">/api/*</div>
+      <div style="display:flex;align-items:center;gap:2px;">
+        <div style="height:2px;width:32px;background:#475569;"></div>
+        <span style="color:#94a3b8;font-size:12px;">▶</span>
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div style="display:flex;flex-direction:column;gap:7px;min-width:175px;">
+      <div class="box service" style="width:170px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">👤 user-service</div>
+        <div class="sub">Auth · Profile · :8001</div>
+      </div>
+      <div class="box service" style="width:170px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">🏠 owner-service</div>
+        <div class="sub">Dashboard · :8002</div>
+      </div>
+      <div class="box service" style="width:170px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">🍽 restaurant-service</div>
+        <div class="sub">Listings · Search · :8003</div>
+      </div>
+      <div class="box service" style="width:170px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">⭐ review-service</div>
+        <div class="sub">Reviews · Kafka pub · :8004</div>
+      </div>
+    </div>
+
+    <!-- arrow to kafka -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:52px;padding-top:36px;">
+      <div style="font-size:9px;color:#f97316;margin-bottom:2px;">publish</div>
+      <div style="display:flex;align-items:center;gap:2px;">
+        <div style="height:2px;width:32px;background:#f97316;"></div>
+        <span style="color:#f97316;font-size:12px;">▶</span>
+      </div>
+    </div>
+
+    <!-- Kafka + Zookeeper -->
+    <div style="display:flex;flex-direction:column;gap:8px;min-width:160px;align-items:center;">
+      <div class="box kafka" style="width:155px;">
+        <div class="label">📨 Apache Kafka</div>
+        <div class="sub">
+          review.created<br/>
+          review.updated<br/>
+          review.deleted<br/>
+          user.created
+        </div>
+      </div>
+      <div class="box" style="width:155px;background:#292524;border:1px solid #57534e;padding:8px 12px;">
+        <div class="label" style="font-size:11px;">🐘 Zookeeper</div>
+        <div class="sub">Kafka coord.</div>
+      </div>
+    </div>
+
+    <!-- arrow to workers -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:52px;padding-top:16px;">
+      <div style="font-size:9px;color:#a78bfa;margin-bottom:2px;">consume</div>
+      <div style="display:flex;align-items:center;gap:2px;">
+        <div style="height:2px;width:32px;background:#a78bfa;"></div>
+        <span style="color:#a78bfa;font-size:12px;">▶</span>
+      </div>
+    </div>
+
+    <!-- Workers -->
+    <div style="display:flex;flex-direction:column;gap:7px;min-width:155px;">
+      <div class="box worker" style="width:150px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">⚙ review-worker</div>
+        <div class="sub">Recalc ratings</div>
+      </div>
+      <div class="box worker" style="width:150px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">⚙ user-worker</div>
+        <div class="sub">User events</div>
+      </div>
+      <div class="box worker" style="width:150px;padding:9px 12px;">
+        <div class="label" style="font-size:12px;">⚙ restaurant-worker</div>
+        <div class="sub">Restaurant events</div>
+      </div>
+    </div>
+
+  </div><!-- end row 1 -->
+
+  <!-- ROW 2: MongoDB centred below services + workers -->
+  <div style="display:flex;justify-content:center;gap:0;align-items:flex-start;">
+
+    <!-- spacer to align under services -->
+    <div style="min-width:160px;"></div><!-- client -->
+    <div style="min-width:52px;"></div><!-- arrow -->
+    <div style="min-width:130px;"></div><!-- nginx -->
+    <div style="min-width:52px;"></div><!-- arrow -->
+
+    <!-- services column width -->
+    <div style="min-width:175px;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div style="height:20px;width:2px;background:#4ade80;"></div>
+          <span style="color:#4ade80;font-size:10px;">▼</span>
+          <div style="font-size:9px;color:#64748b;">read/write</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="min-width:52px;"></div>
+    <div style="min-width:160px;"></div><!-- kafka -->
+    <div style="min-width:52px;"></div>
+
+    <!-- workers column width -->
+    <div style="min-width:155px;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="height:20px;width:2px;background:#4ade80;"></div>
+      <span style="color:#4ade80;font-size:10px;">▼</span>
+      <div style="font-size:9px;color:#64748b;">write back</div>
+    </div>
+
+  </div>
+
+  <!-- ROW 3: MongoDB spanning under both -->
+  <div style="display:flex;justify-content:center;margin-top:4px;">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div style="min-width:414px;"></div><!-- spacer: client+arrow+nginx+arrow+half services -->
+      <div class="box mongo" style="width:340px;padding:14px 20px;">
+        <div class="label">🍃 MongoDB</div>
+        <div class="sub" style="display:flex;gap:16px;justify-content:center;margin-top:6px;flex-wrap:wrap;">
+          <span style="background:#166534;padding:2px 8px;border-radius:4px;">users</span>
+          <span style="background:#166534;padding:2px 8px;border-radius:4px;">restaurants</span>
+          <span style="background:#166534;padding:2px 8px;border-radius:4px;">reviews</span>
+          <span style="background:#166534;padding:2px 8px;border-radius:4px;">favourites</span>
+          <span style="background:#166534;padding:2px 8px;border-radius:4px;">sessions</span>
+        </div>
+        <div class="sub" style="margin-top:6px;">Indexes: email (unique) · restaurant_id+user_id (compound unique) · TTL sessions</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end aws-wrapper -->
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#1e3a5f;border-color:#3b82f6;"></div>Frontend</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#14532d;border-color:#22c55e;"></div>Nginx Proxy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1e1b4b;border-color:#818cf8;"></div>Microservices (FastAPI)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#431407;border-color:#f97316;"></div>Kafka (Event Bus)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1c1917;border-color:#a78bfa;"></div>Async Workers</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#14532d;border-color:#4ade80;"></div>MongoDB</div>
+</div>
+
+<!-- Kafka flow note -->
+<div style="max-width:800px;margin:28px auto 0;background:#1a1a2e;border:1px solid #312e81;border-radius:10px;padding:16px 20px;">
+  <div style="font-weight:700;font-size:13px;color:#a5b4fc;margin-bottom:10px;">📋 Kafka Producer/Consumer Flow</div>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:#cbd5e1;">
+    <span style="background:#1e1b4b;border:1px solid #4f46e5;padding:4px 10px;border-radius:6px;">1. User submits review</span>
+    <span style="color:#475569;">→</span>
+    <span style="background:#1e1b4b;border:1px solid #4f46e5;padding:4px 10px;border-radius:6px;">2. review-service writes to MongoDB (immediate)</span>
+    <span style="color:#475569;">→</span>
+    <span style="background:#431407;border:1px solid #f97316;padding:4px 10px;border-radius:6px;">3. Publishes review.created to Kafka</span>
+    <span style="color:#475569;">→</span>
+    <span style="background:#1c1917;border:1px solid #a78bfa;padding:4px 10px;border-radius:6px;">4. review-worker consumes event</span>
+    <span style="color:#475569;">→</span>
+    <span style="background:#14532d;border:1px solid #4ade80;padding:4px 10px;border-radius:6px;">5. Recalculates avg_rating in MongoDB</span>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:24px;font-size:11px;color:#475569;">
+  Docker Compose (local) · AWS EC2 t3.medium us-west-2 · Kubernetes manifest: k8s/lab2-stack.yaml
+</div>
+
+</body>
+</html>

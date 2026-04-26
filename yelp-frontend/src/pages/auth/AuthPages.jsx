@@ -81,7 +81,7 @@ function AuthForm({ mode }) {
 
             <div>
               <label className="label">Password</label>
-              <input type="password" required minLength={6} value={form.password} onChange={set('password')} className="input" placeholder="Min 6 characters" />
+              <input type="password" required minLength={6} maxLength={72} value={form.password} onChange={set('password')} className="input" placeholder="Min 6 characters" />
             </div>
 
             {!isLogin && isOwner && (

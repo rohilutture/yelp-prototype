@@ -1,58 +1,95 @@
-import json
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from core.database import get_db
-from core.security import get_current_user
+from core.security import get_current_user, UserDoc
 from core.kafka import publish_event
-from models.review import Review
-from models.restaurant import Restaurant
-from models.user import User
+from core.mongo import get_reviews_collection, get_restaurants_collection, get_users_collection, to_oid
 from schemas.schemas import ReviewCreate, ReviewUpdate
 
 router = APIRouter(tags=["Reviews"])
 
-def recalc_rating(restaurant: Restaurant, db: Session):
-    reviews = db.query(Review).filter(Review.restaurant_id == restaurant.id).all()
-    restaurant.review_count = len(reviews)
-    restaurant.avg_rating = round(sum(r.rating for r in reviews) / len(reviews), 2) if reviews else 0.0
-    db.commit()
 
-def review_out(r: Review) -> dict:
+def _recalc_rating(restaurant_id: str):
+    reviews = list(get_reviews_collection().find({"restaurant_id": restaurant_id}))
+    count = len(reviews)
+    avg = round(sum(r["rating"] for r in reviews) / count, 2) if count else 0.0
+    try:
+        get_restaurants_collection().update_one(
+            {"_id": to_oid(restaurant_id)},
+            {"$set": {"review_count": count, "avg_rating": avg}},
+        )
+    except Exception:
+        pass
+
+
+def review_out(r: dict, user_name: str = "Unknown") -> dict:
     return {
-        "id": r.id,
-        "restaurant_id": r.restaurant_id,
-        "user_id": r.user_id,
-        "user_name": r.user.name if r.user else "Unknown",
-        "rating": r.rating,
-        "comment": r.comment,
-        "photos": json.loads(r.photos) if r.photos else [],
-        "created_at": r.created_at,
+        "id": str(r["_id"]),
+        "restaurant_id": r.get("restaurant_id"),
+        "user_id": r.get("user_id"),
+        "user_name": user_name,
+        "rating": r.get("rating"),
+        "comment": r.get("comment"),
+        "photos": r.get("photos", []),
+        "created_at": r.get("created_at"),
     }
 
-# ─── List reviews for a restaurant ───────────────────────────────────────────
-@router.get("/restaurants/{restaurant_id}/reviews")
-def get_reviews(restaurant_id: int, db: Session = Depends(get_db)):
-    reviews = (db.query(Review)
-               .filter(Review.restaurant_id == restaurant_id)
-               .order_by(Review.created_at.desc())
-               .all())
-    return [review_out(r) for r in reviews]
 
-# ─── Create review ────────────────────────────────────────────────────────────
+@router.get("/restaurants/{restaurant_id}/reviews")
+def get_reviews(restaurant_id: str):
+    reviews = list(
+        get_reviews_collection()
+        .find({"restaurant_id": restaurant_id})
+        .sort("created_at", -1)
+    )
+    users_col = get_users_collection()
+    out = []
+    for r in reviews:
+        user_name = "Unknown"
+        if r.get("user_id"):
+            try:
+                u = users_col.find_one({"_id": to_oid(r["user_id"])})
+                if u:
+                    user_name = u.get("name", "Unknown")
+            except Exception:
+                pass
+        out.append(review_out(r, user_name))
+    return out
+
+
 @router.post("/restaurants/{restaurant_id}/reviews", status_code=201)
-def create_review(restaurant_id: int, body: ReviewCreate,
-                  db: Session = Depends(get_db),
-                  current_user: User = Depends(get_current_user)):
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
+def create_review(
+    restaurant_id: str,
+    body: ReviewCreate,
+    current_user: UserDoc = Depends(get_current_user),
+):
+    try:
+        to_oid(restaurant_id)
+    except Exception:
         raise HTTPException(404, "Restaurant not found")
-    existing = db.query(Review).filter(
-        Review.restaurant_id == restaurant_id,
-        Review.user_id == current_user.id
-    ).first()
+    r = get_restaurants_collection().find_one({"_id": to_oid(restaurant_id)})
+    if not r:
+        raise HTTPException(404, "Restaurant not found")
+    existing = get_reviews_collection().find_one({
+        "restaurant_id": restaurant_id,
+        "user_id": current_user.id,
+    })
     if existing:
         raise HTTPException(400, "You have already reviewed this restaurant")
+
+    # Write directly to MongoDB so the review is immediately visible
+    get_reviews_collection().insert_one({
+        "restaurant_id": restaurant_id,
+        "user_id": current_user.id,
+        "user_name": current_user.name,
+        "rating": body.rating,
+        "comment": body.comment,
+        "photos": [],
+        "created_at": datetime.now(timezone.utc),
+    })
+    _recalc_rating(restaurant_id)
+
+    # Publish to Kafka for async rating recalculation by the worker
     event_id = str(uuid.uuid4())
     publish_event("review.created", {
         "event_id": event_id,
@@ -63,40 +100,66 @@ def create_review(restaurant_id: int, body: ReviewCreate,
     })
     return {"status": "queued", "event_id": event_id, "operation": "create"}
 
-# ─── Update review ────────────────────────────────────────────────────────────
+
 @router.put("/reviews/{review_id}")
-def update_review(review_id: int, body: ReviewUpdate,
-                  db: Session = Depends(get_db),
-                  current_user: User = Depends(get_current_user)):
-    review = db.query(Review).filter(Review.id == review_id).first()
+def update_review(
+    review_id: str,
+    body: ReviewUpdate,
+    current_user: UserDoc = Depends(get_current_user),
+):
+    try:
+        oid = to_oid(review_id)
+    except Exception:
+        raise HTTPException(404, "Review not found")
+    review = get_reviews_collection().find_one({"_id": oid})
     if not review:
         raise HTTPException(404, "Review not found")
-    if review.user_id != current_user.id:
+    if review.get("user_id") != current_user.id:
         raise HTTPException(403, "Not your review")
+
+    updates = {}
+    if body.rating is not None:
+        updates["rating"] = body.rating
+    if body.comment is not None:
+        updates["comment"] = body.comment
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc)
+        get_reviews_collection().update_one({"_id": oid}, {"$set": updates})
+    _recalc_rating(review["restaurant_id"])
+
     event_id = str(uuid.uuid4())
     publish_event("review.updated", {
         "event_id": event_id,
-        "review_id": review.id,
+        "review_id": review_id,
         "user_id": current_user.id,
         "rating": body.rating,
         "comment": body.comment,
     })
     return {"status": "queued", "event_id": event_id, "operation": "update"}
 
-# ─── Delete review ────────────────────────────────────────────────────────────
+
 @router.delete("/reviews/{review_id}", status_code=202)
-def delete_review(review_id: int, db: Session = Depends(get_db),
-                  current_user: User = Depends(get_current_user)):
-    review = db.query(Review).filter(Review.id == review_id).first()
+def delete_review(review_id: str, current_user: UserDoc = Depends(get_current_user)):
+    try:
+        oid = to_oid(review_id)
+    except Exception:
+        raise HTTPException(404, "Review not found")
+    review = get_reviews_collection().find_one({"_id": oid})
     if not review:
         raise HTTPException(404, "Review not found")
-    if review.user_id != current_user.id:
+    if review.get("user_id") != current_user.id:
         raise HTTPException(403, "Not your review")
+
+    restaurant_id = review.get("restaurant_id")
+    get_reviews_collection().delete_one({"_id": oid})
+    if restaurant_id:
+        _recalc_rating(restaurant_id)
+
     event_id = str(uuid.uuid4())
     publish_event("review.deleted", {
         "event_id": event_id,
-        "review_id": review.id,
+        "review_id": review_id,
         "user_id": current_user.id,
-        "restaurant_id": review.restaurant_id,
+        "restaurant_id": review.get("restaurant_id"),
     })
     return {"status": "queued", "event_id": event_id, "operation": "delete"}

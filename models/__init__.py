@@ -1,3 +1,2 @@
-from models.user import User
-from models.restaurant import Restaurant
-from models.review import Review, Favourite, UserPreference
+# SQLAlchemy models removed — all data now stored in MongoDB.
+# See core/mongo.py for collection accessors.

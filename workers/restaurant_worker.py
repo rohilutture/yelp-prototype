@@ -16,6 +16,9 @@ def run():
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
         auto_offset_reset="earliest",
         enable_auto_commit=True,
+        api_version=(2, 5, 0),
+        request_timeout_ms=30000,
+        connections_max_idle_ms=60000,
     )
     logs = get_activity_logs_collection()
     for message in consumer:

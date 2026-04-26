@@ -1,6 +1,9 @@
 # Yelp Prototype - Lab 2
 
-Full-stack Yelp-style application enhanced for Lab 2 with Docker, Kubernetes, Kafka, MongoDB session storage, and Redux Toolkit.
+Full-stack Yelp-style restaurant review application built on a microservices architecture with MongoDB, Apache Kafka, Redux Toolkit, Docker Compose, and AWS EC2 deployment.
+
+**Course:** Distributed Systems for Data Engineering
+**Due:** April 28, 2026
 
 ## Lab 2 Deliverables Included
 
@@ -37,10 +40,9 @@ yelp-prototype-main/
 
 ## Environment Variables
 
-Create `.env` in the project root:
+Create `.env` in the project root (no MySQL required — MongoDB only):
 
 ```env
-DATABASE_URL=mysql+pymysql://root:root@localhost:3306/yelp_db
 MONGODB_URL=mongodb://localhost:27017
 MONGO_DB_NAME=yelp_lab2
 SECRET_KEY=change-this-secret-key
@@ -130,17 +132,62 @@ kubectl get pods -n yelp-lab2
 kubectl get svc -n yelp-lab2
 ```
 
-## JMeter
+## JMeter Performance Testing
 
-Test plan and templates are provided in `jmeter/`:
+Test plan is in `jmeter/lab2-performance-test-plan.jmx`. Results are in `results/`.
 
-- `jmeter/lab2-performance-test-plan.jmx`
-- `jmeter/results-summary-template.csv`
+Run all 5 concurrency levels:
 
-Run tests at concurrency levels 100, 200, 300, 400, 500 and update the results template.
+```bash
+jmeter -n -t jmeter/lab2-performance-test-plan.jmx -Jconcurrency=100 -l results/results_100.jtl
+jmeter -n -t jmeter/lab2-performance-test-plan.jmx -Jconcurrency=200 -l results/results_200.jtl
+jmeter -n -t jmeter/lab2-performance-test-plan.jmx -Jconcurrency=300 -l results/results_300.jtl
+jmeter -n -t jmeter/lab2-performance-test-plan.jmx -Jconcurrency=400 -l results/results_400.jtl
+jmeter -n -t jmeter/lab2-performance-test-plan.jmx -Jconcurrency=500 -l results/results_500.jtl
+```
+
+Generate HTML reports:
+
+```bash
+jmeter -g results/results_500.jtl -o results/html_500
+```
+
+| Concurrent Users | Avg Response (ms) | Throughput (req/s) | Error % |
+|---|---|---|---|
+| 100 | 330 | 23.8 | 11.95% |
+| 200 | 944 | 44.1 | 1.60% |
+| 300 | 3,852 | 43.5 | 0.00% |
+| 400 | 6,365 | 44.3 | 0.05% |
+| 500 | 9,199 | 44.4 | 0.00% |
+
+## AWS Deployment
+
+The application was deployed to AWS EC2 (t3.medium, Ubuntu 24.04, us-west-2).
+
+Steps to redeploy:
+
+```bash
+# Launch EC2 t3.medium with ports 22, 5173, 8000 open
+# SSH in
+ssh -i yelp-lab2-key.pem ubuntu@<EC2-PUBLIC-IP>
+
+# Install Docker
+sudo apt update && sudo apt install -y docker.io docker-compose-v2
+sudo usermod -aG docker ubuntu
+newgrp docker
+
+# Copy project and run
+scp -r yelp-prototype ubuntu@<EC2-PUBLIC-IP>:~/
+cd ~/yelp-prototype
+docker compose up -d
+```
+
+App accessible at `http://<EC2-PUBLIC-IP>:5173`
 
 ## Notes
 
+- MySQL has been fully removed. MongoDB is the only database.
 - Passwords are hashed with bcrypt (`core/security.py`).
-- Session records are persisted in MongoDB (`routers/auth.py` + `core/mongo.py`).
-- Kafka topic creation is attempted automatically during app startup.
+- Session records are persisted in MongoDB with TTL expiry (`core/mongo.py`).
+- Kafka publish is fault-tolerant — wrapped in try/except so the app works without Kafka running.
+- All MongoDB IDs are ObjectId strings (no integer auto-increment PKs).

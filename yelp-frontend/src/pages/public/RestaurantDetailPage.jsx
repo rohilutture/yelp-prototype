@@ -15,17 +15,23 @@ import {
 } from '../../store/reviewsSlice'
 
 const PRICE = { 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' }
+const toPhotoUrl = (photo) =>
+  photo?.startsWith('http://') || photo?.startsWith('https://')
+    ? photo
+    : `http://localhost:8000${photo}`
 
 export default function RestaurantDetailPage() {
   const dispatch = useDispatch()
   const { id } = useParams()
   const { user } = useAuth()
   const favCtx = useFavourites()
-  const isFav = favCtx?.isFavourite(Number(id))
+  const isFav = favCtx?.isFavourite(id)
 
-  const restaurant = useSelector(selectRestaurantById(Number(id)))
-  const reviews = useSelector(selectReviewsForRestaurant(Number(id)))
-  const loading = useSelector(selectRestaurantsLoading) || useSelector(selectReviewLoading)
+  const restaurant = useSelector(selectRestaurantById(id))
+  const reviews = useSelector(selectReviewsForRestaurant(id))
+  const restaurantsLoading = useSelector(selectRestaurantsLoading)
+  const reviewsLoading = useSelector(selectReviewLoading)
+  const loading = restaurantsLoading || reviewsLoading
   const [initialFetchDone, setInitialFetchDone] = useState(false)
   const [showReviewForm, setShowReviewForm] = useState(false)
   const [editingReview, setEditingReview] = useState(null)
@@ -55,7 +61,7 @@ export default function RestaurantDetailPage() {
       setReviewForm({ rating: 0, comment: '' })
       setShowReviewForm(false)
       setEditingReview(null)
-      setTimeout(fetchData, 400)
+      setTimeout(fetchData, 1500)
     } finally {
       setSubmitting(false)
     }
@@ -121,7 +127,7 @@ export default function RestaurantDetailPage() {
       {restaurant.photos?.length > 0 && (
         <div className="grid grid-cols-3 gap-2 mb-6 rounded-2xl overflow-hidden h-60">
           {restaurant.photos.slice(0, 3).map((p, i) => (
-            <img key={i} src={`http://localhost:8000${p}`} alt="" className={`w-full h-full object-cover ${i === 0 ? 'col-span-2' : ''}`} />
+            <img key={i} src={toPhotoUrl(p)} alt="" className={`w-full h-full object-cover ${i === 0 ? 'col-span-2' : ''}`} />
           ))}
         </div>
       )}

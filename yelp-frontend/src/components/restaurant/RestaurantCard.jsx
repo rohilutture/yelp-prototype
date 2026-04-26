@@ -4,6 +4,10 @@ import { useFavourites } from '../../context/AppContext'
 import StarRating from "../common/StarRating";
 
 const PRICE_LABELS = { 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' }
+const toPhotoUrl = (photo) =>
+  photo?.startsWith('http://') || photo?.startsWith('https://')
+    ? photo
+    : `http://localhost:8000${photo}`
 
 export default function RestaurantCard({ restaurant }) {
   const { user } = useAuth()
@@ -11,16 +15,17 @@ export default function RestaurantCard({ restaurant }) {
   const isFav = favCtx?.isFavourite(restaurant.id)
 
   return (
-    <div className="card group cursor-pointer">
+    <div className="card group cursor-pointer hover:-translate-y-1">
       <Link to={`/restaurants/${restaurant.id}`} className="block">
         {/* Image */}
         <div className="relative h-44 bg-surface-100 overflow-hidden">
           {restaurant.photos?.[0] ? (
-            <img src={`http://localhost:8000${restaurant.photos[0]}`} alt={restaurant.name}
+            <img src={toPhotoUrl(restaurant.photos[0])} alt={restaurant.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-surface-200 text-4xl">🍽️</div>
           )}
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent pointer-events-none" />
           <div className="absolute top-3 left-3">
             <span className="badge bg-white/90 backdrop-blur text-surface-800 shadow-sm">
               {restaurant.cuisine_type}

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>JMeter Performance Results</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+  }
+  h2 {
+    color: #1e3a5f;
+    margin-bottom: 4px;
+    font-size: 20px;
+  }
+  p {
+    color: #6b7280;
+    font-size: 13px;
+    margin-bottom: 30px;
+  }
+  .chart-container {
+    width: 800px;
+    height: 420px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+  }
+</style>
+</head>
+<body>
+
+<h2>Average Response Time vs. Concurrent Users</h2>
+<p>Yelp Prototype — JMeter Load Test Results (Local Docker, Apache JMeter 5.6.3)</p>
+
+<div class="chart-container">
+  <canvas id="myChart"></canvas>
+</div>
+
+<script>
+const ctx = document.getElementById('myChart').getContext('2d');
+
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: ['100', '200', '300', '400', '500'],
+    datasets: [
+      {
+        label: 'Average Response Time (ms)',
+        data: [330, 944, 3852, 6365, 9199],
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.08)',
+        borderWidth: 3,
+        pointBackgroundColor: '#2563eb',
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        fill: true,
+        tension: 0.3,
+      },
+      {
+        label: 'Throughput (req/s)',
+        data: [23.8, 44.1, 43.5, 44.3, 44.4],
+        borderColor: '#16a34a',
+        backgroundColor: 'rgba(22,163,74,0.06)',
+        borderWidth: 2,
+        pointBackgroundColor: '#16a34a',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        fill: true,
+        tension: 0.3,
+        yAxisID: 'y2',
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: { font: { size: 13 }, padding: 20 }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(ctx) {
+            if (ctx.datasetIndex === 0) return ` Avg Response: ${ctx.parsed.y.toLocaleString()} ms`;
+            return ` Throughput: ${ctx.parsed.y} req/s`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Concurrent Users',
+          font: { size: 14, weight: 'bold' },
+          color: '#374151'
+        },
+        grid: { color: '#f3f4f6' }
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'Avg Response Time (ms)',
+          font: { size: 14, weight: 'bold' },
+          color: '#2563eb'
+        },
+        ticks: { color: '#2563eb' },
+        grid: { color: '#e5e7eb' },
+        beginAtZero: true,
+      },
+      y2: {
+        position: 'right',
+        title: {
+          display: true,
+          text: 'Throughput (req/s)',
+          font: { size: 14, weight: 'bold' },
+          color: '#16a34a'
+        },
+        ticks: { color: '#16a34a' },
+        grid: { drawOnChartArea: false },
+        beginAtZero: true,
+        max: 80,
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>

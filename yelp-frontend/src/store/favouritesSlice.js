@@ -54,6 +54,6 @@ const favouritesSlice = createSlice({
 })
 
 export const selectFavouriteIds = (state) => state.favourites.ids
-export const selectIsFavourite = (id) => (state) => state.favourites.ids.includes(Number(id))
+export const selectIsFavourite = (id) => (state) => state.favourites.ids.includes(id)
 
 export default favouritesSlice.reducer
